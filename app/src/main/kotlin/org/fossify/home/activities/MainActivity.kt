@@ -24,6 +24,7 @@ import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.UserManager
 import android.provider.Settings
 import android.provider.Telephony
 import android.telecom.TelecomManager
@@ -90,6 +91,7 @@ import org.fossify.home.helpers.REQUEST_ALLOW_BINDING_WIDGET
 import org.fossify.home.helpers.REQUEST_CONFIGURE_WIDGET
 import org.fossify.home.helpers.REQUEST_CREATE_SHORTCUT
 import org.fossify.home.helpers.REQUEST_SET_DEFAULT
+import org.fossify.home.helpers.UNKNOWN_USER_SERIAL
 import org.fossify.home.helpers.UNINSTALL_APP_REQUEST_CODE
 import org.fossify.home.interfaces.FlingListener
 import org.fossify.home.interfaces.ItemMenuListener
@@ -513,6 +515,9 @@ class MainActivity : SimpleActivity(), FlingListener {
                     shortcutInfo,
                     resources.displayMetrics.densityDpi
                 )
+                val userManager = applicationContext.getSystemService(USER_SERVICE) as UserManager
+                val shortcutUserSerial =
+                    userManager.getSerialNumberForUser(shortcutInfo.userHandle)
                 val (page, rect) = findFirstEmptyCell()
                 val gridItem = HomeScreenGridItem(
                     id = null,
@@ -523,6 +528,7 @@ class MainActivity : SimpleActivity(), FlingListener {
                     page = page,
                     packageName = shortcutInfo.`package`,
                     activityName = "",
+                    userSerial = shortcutUserSerial,
                     title = label,
                     type = ITEM_TYPE_SHORTCUT,
                     className = "",
@@ -594,10 +600,19 @@ class MainActivity : SimpleActivity(), FlingListener {
         binding.allAppsFragment.root.gotLaunchers(launchers)
         binding.widgetsFragment.root.getAppWidgets()
 
-        IconCache.launchers.map { it.packageName }.forEach { packageName ->
-            if (!launchers.map { it.packageName }.contains(packageName)) {
-                launchersDB.deleteApp(packageName)
-                homeScreenGridItemsDB.deleteByPackageName(packageName)
+        val newIdentifiers = launchers.map { it.getLauncherIdentifier() }.toHashSet()
+        IconCache.launchers.forEach { cachedLauncher ->
+            if (!newIdentifiers.contains(cachedLauncher.getLauncherIdentifier())) {
+                launchersDB.deleteApp(
+                    cachedLauncher.packageName,
+                    cachedLauncher.activityName,
+                    cachedLauncher.userSerial
+                )
+                homeScreenGridItemsDB.deleteByIdentifier(
+                    cachedLauncher.packageName,
+                    cachedLauncher.activityName,
+                    cachedLauncher.userSerial
+                )
             }
         }
 
@@ -762,7 +777,11 @@ class MainActivity : SimpleActivity(), FlingListener {
 
     private fun performItemClick(clickedGridItem: HomeScreenGridItem) {
         when (clickedGridItem.type) {
-            ITEM_TYPE_ICON -> launchApp(clickedGridItem.packageName, clickedGridItem.activityName)
+            ITEM_TYPE_ICON -> launchApp(
+                clickedGridItem.packageName,
+                clickedGridItem.activityName,
+                clickedGridItem.userSerial
+            )
             ITEM_TYPE_FOLDER -> openFolder(clickedGridItem)
             ITEM_TYPE_SHORTCUT -> {
                 val id = clickedGridItem.shortcutId
@@ -869,7 +888,7 @@ class MainActivity : SimpleActivity(), FlingListener {
 
     private fun hideIcon(item: HomeScreenGridItem) {
         ensureBackgroundThread {
-            val hiddenIcon = HiddenIcon(null, item.packageName, item.activityName, item.title, null)
+            val hiddenIcon = HiddenIcon(null, item.packageName, item.activityName, item.userSerial, item.title, null)
             hiddenIconsDB.insert(hiddenIcon)
 
             runOnUiThread {
@@ -941,7 +960,7 @@ class MainActivity : SimpleActivity(), FlingListener {
         }
 
         override fun appInfo(gridItem: HomeScreenGridItem) {
-            launchAppInfo(gridItem.packageName)
+            launchAppInfo(gridItem.packageName, gridItem.activityName, gridItem.userSerial)
         }
 
         override fun remove(gridItem: HomeScreenGridItem) {
@@ -1073,46 +1092,54 @@ class MainActivity : SimpleActivity(), FlingListener {
         }
 
         val allApps = ArrayList<AppLauncher>()
-        val intent = Intent(Intent.ACTION_MAIN, null)
-        intent.addCategory(Intent.CATEGORY_LAUNCHER)
-
         val simpleLauncher = applicationContext.packageName
         val microG = "com.google.android.gms"
-        val list = packageManager.queryIntentActivities(intent, PackageManager.PERMISSION_GRANTED)
-        for (info in list) {
-            val componentInfo = info.activityInfo.applicationInfo
-            val packageName = componentInfo.packageName
-            if (packageName == simpleLauncher || packageName == microG) {
+        val launcherApps =
+            applicationContext.getSystemService(LAUNCHER_APPS_SERVICE) as LauncherApps
+        val userManager = applicationContext.getSystemService(USER_SERVICE) as UserManager
+        val userHandles = userManager.userProfiles
+        for (userHandle in userHandles) {
+            val userSerial = userManager.getSerialNumberForUser(userHandle)
+            if (userSerial == UNKNOWN_USER_SERIAL) {
                 continue
             }
 
-            val activityName = info.activityInfo.name
-            if (hiddenIcons.contains("$packageName/$activityName")) {
-                continue
-            }
+            val activityList = launcherApps.getActivityList(null, userHandle)
+            for (info in activityList) {
+                val packageName = info.applicationInfo.packageName
+                if (packageName == simpleLauncher || packageName == microG) {
+                    continue
+                }
 
-            val label = info.loadLabel(packageManager).toString()
-            val drawable = info.loadIcon(packageManager)
-                ?: getDrawableForPackageName(packageName)
-                ?: continue
+                val activityName = info.name
+                if (hiddenIcons.contains("$packageName/$activityName/$userSerial")) {
+                    continue
+                }
 
-            val bitmap = drawable.toBitmap(
-                width = max(drawable.intrinsicWidth, 1),
-                height = max(drawable.intrinsicHeight, 1),
-                config = Bitmap.Config.ARGB_8888
-            )
-            val placeholderColor = calculateAverageColor(bitmap)
-            allApps.add(
-                AppLauncher(
-                    id = null,
-                    title = label,
-                    packageName = packageName,
-                    activityName = activityName,
-                    order = 0,
-                    thumbnailColor = placeholderColor,
-                    drawable = bitmap.toDrawable(resources)
+                val label = info.label.toString()
+                val drawable = info.getBadgedIcon(resources.displayMetrics.densityDpi)
+                    ?: getDrawableForPackageName(packageName, userSerial)
+                    ?: continue
+
+                val bitmap = drawable.toBitmap(
+                    width = max(drawable.intrinsicWidth, 1),
+                    height = max(drawable.intrinsicHeight, 1),
+                    config = Bitmap.Config.ARGB_8888
                 )
-            )
+                val placeholderColor = calculateAverageColor(bitmap)
+                allApps.add(
+                    AppLauncher(
+                        id = null,
+                        title = label,
+                        packageName = packageName,
+                        activityName = activityName,
+                        userSerial = userSerial,
+                        order = 0,
+                        thumbnailColor = placeholderColor,
+                        drawable = bitmap.toDrawable(resources)
+                    )
+                )
+            }
         }
 
         launchersDB.insertAll(allApps)
@@ -1121,10 +1148,14 @@ class MainActivity : SimpleActivity(), FlingListener {
 
     private fun getDefaultAppPackages(appLaunchers: ArrayList<AppLauncher>) {
         val homeScreenGridItems = ArrayList<HomeScreenGridItem>()
+        val myUserSerial =
+            (getSystemService(USER_SERVICE) as UserManager).getSerialNumberForUser(android.os.Process.myUserHandle())
         try {
             val defaultDialerPackage =
                 (getSystemService(TELECOM_SERVICE) as TelecomManager).defaultDialerPackage
-            appLaunchers.firstOrNull { it.packageName == defaultDialerPackage }?.apply {
+            appLaunchers.firstOrNull {
+                it.packageName == defaultDialerPackage && it.userSerial == myUserSerial
+            }?.apply {
                 val dialerIcon =
                     HomeScreenGridItem(
                         id = null,
@@ -1135,6 +1166,7 @@ class MainActivity : SimpleActivity(), FlingListener {
                         page = 0,
                         packageName = defaultDialerPackage,
                         activityName = "",
+                        userSerial = userSerial,
                         title = title,
                         type = ITEM_TYPE_ICON,
                         className = "",
@@ -1151,7 +1183,9 @@ class MainActivity : SimpleActivity(), FlingListener {
 
         try {
             val defaultSMSMessengerPackage = Telephony.Sms.getDefaultSmsPackage(this)
-            appLaunchers.firstOrNull { it.packageName == defaultSMSMessengerPackage }?.apply {
+            appLaunchers.firstOrNull {
+                it.packageName == defaultSMSMessengerPackage && it.userSerial == myUserSerial
+            }?.apply {
                 val messengerIcon =
                     HomeScreenGridItem(
                         id = null,
@@ -1162,6 +1196,7 @@ class MainActivity : SimpleActivity(), FlingListener {
                         page = 0,
                         packageName = defaultSMSMessengerPackage,
                         activityName = "",
+                        userSerial = userSerial,
                         title = title,
                         type = ITEM_TYPE_ICON,
                         className = "",
@@ -1181,7 +1216,9 @@ class MainActivity : SimpleActivity(), FlingListener {
             val resolveInfo =
                 packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
             val defaultBrowserPackage = resolveInfo!!.activityInfo.packageName
-            appLaunchers.firstOrNull { it.packageName == defaultBrowserPackage }?.apply {
+            appLaunchers.firstOrNull {
+                it.packageName == defaultBrowserPackage && it.userSerial == myUserSerial
+            }?.apply {
                 val browserIcon =
                     HomeScreenGridItem(
                         id = null,
@@ -1192,6 +1229,7 @@ class MainActivity : SimpleActivity(), FlingListener {
                         page = 0,
                         packageName = defaultBrowserPackage,
                         activityName = "",
+                        userSerial = userSerial,
                         title = title,
                         type = ITEM_TYPE_ICON,
                         className = "",
@@ -1214,7 +1252,9 @@ class MainActivity : SimpleActivity(), FlingListener {
                 isPackageInstalled(it) && appLaunchers.map { it.packageName }.contains(it)
             }
             if (storePackage != null) {
-                appLaunchers.firstOrNull { it.packageName == storePackage }?.apply {
+                appLaunchers.firstOrNull {
+                    it.packageName == storePackage && it.userSerial == myUserSerial
+                }?.apply {
                     val storeIcon = HomeScreenGridItem(
                         id = null,
                         left = 3,
@@ -1224,6 +1264,7 @@ class MainActivity : SimpleActivity(), FlingListener {
                         page = 0,
                         packageName = storePackage,
                         activityName = "",
+                        userSerial = userSerial,
                         title = title,
                         type = ITEM_TYPE_ICON,
                         className = "",
@@ -1244,7 +1285,9 @@ class MainActivity : SimpleActivity(), FlingListener {
             val resolveInfo =
                 packageManager.resolveActivity(cameraIntent, PackageManager.MATCH_DEFAULT_ONLY)
             val defaultCameraPackage = resolveInfo!!.activityInfo.packageName
-            appLaunchers.firstOrNull { it.packageName == defaultCameraPackage }?.apply {
+            appLaunchers.firstOrNull {
+                it.packageName == defaultCameraPackage && it.userSerial == myUserSerial
+            }?.apply {
                 val cameraIcon =
                     HomeScreenGridItem(
                         id = null,
@@ -1255,6 +1298,7 @@ class MainActivity : SimpleActivity(), FlingListener {
                         page = 0,
                         packageName = defaultCameraPackage,
                         activityName = "",
+                        userSerial = userSerial,
                         title = title,
                         type = ITEM_TYPE_ICON,
                         className = "",
