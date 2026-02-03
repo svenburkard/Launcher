@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
 import android.view.MotionEvent
+import android.view.inputmethod.EditorInfo
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.OnScrollListener
 import org.fossify.commons.extensions.beGone
@@ -199,6 +200,16 @@ class AllAppsFragment(
 
         binding.searchBar.onSearchTextChangedListener = {
             submitList(launchers)
+        }
+
+        binding.searchBar.binding.topToolbarSearch.setOnEditorActionListener { _, actionId, _ ->
+            if (binding.searchBar.getCurrentQuery().isEmpty()) return@setOnEditorActionListener false
+            when (actionId) {
+                EditorInfo.IME_ACTION_DONE,
+                EditorInfo.IME_ACTION_SEARCH,
+                EditorInfo.IME_ACTION_GO -> getAdapter()?.launchFirstApp() == true
+                else -> false
+            }
         }
     }
 

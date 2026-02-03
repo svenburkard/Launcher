@@ -45,6 +45,12 @@ class LaunchersAdapter(
         return getItem(position).getLauncherIdentifier().hashCode().toLong()
     }
 
+    fun launchFirstApp(): Boolean {
+        val launcher = currentList.firstOrNull() ?: return false
+        itemClick(launcher)
+        return true
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val binding = ItemLauncherLabelBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
