@@ -274,7 +274,8 @@ class WidgetsFragment(context: Context, attributeSet: AttributeSet) :
             page = 0,
             packageName = appWidget.appPackageName,
             activityName = "",
-            userSerial = (context.getSystemService(Context.USER_SERVICE) as UserManager).getSerialNumberForUser(Process.myUserHandle()),
+            userSerial = (context.getSystemService(Context.USER_SERVICE) as UserManager)
+                .getSerialNumberForUser(Process.myUserHandle()),
             title = "",
             type = type,
             className = appWidget.className,

@@ -41,10 +41,17 @@ interface HomeScreenGridItemsDao {
         deleteItemsWithParentId(id)
     }
 
-    @Query("DELETE FROM home_screen_grid_items WHERE package_name = :packageName AND activity_name = :activityName AND user_serial = :userSerial")
+    @Query(
+        "DELETE FROM home_screen_grid_items WHERE package_name = :packageName " +
+            "AND activity_name = :activityName AND user_serial = :userSerial"
+    )
     fun deleteItemByIdentifier(packageName: String, activityName: String, userSerial: Long)
 
-    @Query("DELETE FROM home_screen_grid_items WHERE parent_id IN (SELECT id FROM home_screen_grid_items WHERE package_name = :packageName AND activity_name = :activityName AND user_serial = :userSerial)")
+    @Query(
+        "DELETE FROM home_screen_grid_items WHERE parent_id IN (" +
+            "SELECT id FROM home_screen_grid_items WHERE package_name = :packageName " +
+            "AND activity_name = :activityName AND user_serial = :userSerial)"
+    )
     fun deleteItemsByParentIdentifier(packageName: String, activityName: String, userSerial: Long)
 
     @Query("UPDATE home_screen_grid_items SET `left` = `left` + :shiftBy WHERE parent_id == :folderId AND `left` > :shiftFrom AND id != :excludingId")
