@@ -1150,171 +1150,129 @@ class MainActivity : SimpleActivity(), FlingListener {
         val homeScreenGridItems = ArrayList<HomeScreenGridItem>()
         val myUserSerial =
             (getSystemService(USER_SERVICE) as UserManager).getSerialNumberForUser(android.os.Process.myUserHandle())
-        try {
-            val defaultDialerPackage =
-                (getSystemService(TELECOM_SERVICE) as TelecomManager).defaultDialerPackage
-            appLaunchers.firstOrNull {
-                it.packageName == defaultDialerPackage && it.userSerial == myUserSerial
-            }?.apply {
-                val dialerIcon =
-                    HomeScreenGridItem(
-                        id = null,
-                        left = 0,
-                        top = config.homeRowCount - 1,
-                        right = 0,
-                        bottom = config.homeRowCount - 1,
-                        page = 0,
-                        packageName = defaultDialerPackage,
-                        activityName = "",
-                        userSerial = userSerial,
-                        title = title,
-                        type = ITEM_TYPE_ICON,
-                        className = "",
-                        widgetId = -1,
-                        shortcutId = "",
-                        icon = null,
-                        docked = true,
-                        parentId = null
-                    )
-                homeScreenGridItems.add(dialerIcon)
-            }
-        } catch (_: Exception) {
-        }
-
-        try {
-            val defaultSMSMessengerPackage = Telephony.Sms.getDefaultSmsPackage(this)
-            appLaunchers.firstOrNull {
-                it.packageName == defaultSMSMessengerPackage && it.userSerial == myUserSerial
-            }?.apply {
-                val messengerIcon =
-                    HomeScreenGridItem(
-                        id = null,
-                        left = 1,
-                        top = config.homeRowCount - 1,
-                        right = 1,
-                        bottom = config.homeRowCount - 1,
-                        page = 0,
-                        packageName = defaultSMSMessengerPackage,
-                        activityName = "",
-                        userSerial = userSerial,
-                        title = title,
-                        type = ITEM_TYPE_ICON,
-                        className = "",
-                        widgetId = -1,
-                        shortcutId = "",
-                        icon = null,
-                        docked = true,
-                        parentId = null
-                    )
-                homeScreenGridItems.add(messengerIcon)
-            }
-        } catch (_: Exception) {
-        }
-
-        try {
-            val browserIntent = Intent(Intent.ACTION_VIEW, "http://".toUri())
-            val resolveInfo =
-                packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
-            val defaultBrowserPackage = resolveInfo!!.activityInfo.packageName
-            appLaunchers.firstOrNull {
-                it.packageName == defaultBrowserPackage && it.userSerial == myUserSerial
-            }?.apply {
-                val browserIcon =
-                    HomeScreenGridItem(
-                        id = null,
-                        left = 2,
-                        top = config.homeRowCount - 1,
-                        right = 2,
-                        bottom = config.homeRowCount - 1,
-                        page = 0,
-                        packageName = defaultBrowserPackage,
-                        activityName = "",
-                        userSerial = userSerial,
-                        title = title,
-                        type = ITEM_TYPE_ICON,
-                        className = "",
-                        widgetId = -1,
-                        shortcutId = "",
-                        icon = null,
-                        docked = true,
-                        parentId = null
-                    )
-                homeScreenGridItems.add(browserIcon)
-            }
-        } catch (_: Exception) {
-        }
-
-        try {
-            val potentialStores = arrayListOf(
-                "com.android.vending", "org.fdroid.fdroid", "com.aurora.store"
-            )
-            val storePackage = potentialStores.firstOrNull {
-                isPackageInstalled(it) && appLaunchers.map { it.packageName }.contains(it)
-            }
-            if (storePackage != null) {
-                appLaunchers.firstOrNull {
-                    it.packageName == storePackage && it.userSerial == myUserSerial
-                }?.apply {
-                    val storeIcon = HomeScreenGridItem(
-                        id = null,
-                        left = 3,
-                        top = config.homeRowCount - 1,
-                        right = 3,
-                        bottom = config.homeRowCount - 1,
-                        page = 0,
-                        packageName = storePackage,
-                        activityName = "",
-                        userSerial = userSerial,
-                        title = title,
-                        type = ITEM_TYPE_ICON,
-                        className = "",
-                        widgetId = -1,
-                        shortcutId = "",
-                        icon = null,
-                        docked = true,
-                        parentId = null
-                    )
-                    homeScreenGridItems.add(storeIcon)
-                }
-            }
-        } catch (_: Exception) {
-        }
-
-        try {
-            val cameraIntent = Intent("android.media.action.IMAGE_CAPTURE")
-            val resolveInfo =
-                packageManager.resolveActivity(cameraIntent, PackageManager.MATCH_DEFAULT_ONLY)
-            val defaultCameraPackage = resolveInfo!!.activityInfo.packageName
-            appLaunchers.firstOrNull {
-                it.packageName == defaultCameraPackage && it.userSerial == myUserSerial
-            }?.apply {
-                val cameraIcon =
-                    HomeScreenGridItem(
-                        id = null,
-                        left = 4,
-                        top = config.homeRowCount - 1,
-                        right = 4,
-                        bottom = config.homeRowCount - 1,
-                        page = 0,
-                        packageName = defaultCameraPackage,
-                        activityName = "",
-                        userSerial = userSerial,
-                        title = title,
-                        type = ITEM_TYPE_ICON,
-                        className = "",
-                        widgetId = -1,
-                        shortcutId = "",
-                        icon = null,
-                        docked = true,
-                        parentId = null
-                    )
-                homeScreenGridItems.add(cameraIcon)
-            }
-        } catch (_: Exception) {
-        }
+        addDockedItemIfPresent(
+            homeScreenGridItems = homeScreenGridItems,
+            appLaunchers = appLaunchers,
+            userSerial = myUserSerial,
+            packageName = getDefaultDialerPackageOrNull(),
+            column = 0
+        )
+        addDockedItemIfPresent(
+            homeScreenGridItems = homeScreenGridItems,
+            appLaunchers = appLaunchers,
+            userSerial = myUserSerial,
+            packageName = getDefaultSmsPackageOrNull(),
+            column = 1
+        )
+        addDockedItemIfPresent(
+            homeScreenGridItems = homeScreenGridItems,
+            appLaunchers = appLaunchers,
+            userSerial = myUserSerial,
+            packageName = getDefaultBrowserPackageOrNull(),
+            column = 2
+        )
+        addDockedItemIfPresent(
+            homeScreenGridItems = homeScreenGridItems,
+            appLaunchers = appLaunchers,
+            userSerial = myUserSerial,
+            packageName = getDefaultStorePackageOrNull(appLaunchers),
+            column = 3
+        )
+        addDockedItemIfPresent(
+            homeScreenGridItems = homeScreenGridItems,
+            appLaunchers = appLaunchers,
+            userSerial = myUserSerial,
+            packageName = getDefaultCameraPackageOrNull(),
+            column = 4
+        )
 
         homeScreenGridItemsDB.insertAll(homeScreenGridItems)
     }
+
+    private fun addDockedItemIfPresent(
+        homeScreenGridItems: MutableList<HomeScreenGridItem>,
+        appLaunchers: List<AppLauncher>,
+        userSerial: Long,
+        packageName: String?,
+        column: Int,
+    ) {
+        if (packageName.isNullOrEmpty()) {
+            return
+        }
+
+        val launcher = appLaunchers.firstOrNull {
+            it.packageName == packageName && it.userSerial == userSerial
+        } ?: return
+
+        homeScreenGridItems.add(
+            createDockedItem(
+                column = column,
+                packageName = packageName,
+                launcher = launcher
+            )
+        )
+    }
+
+    private fun createDockedItem(
+        column: Int,
+        packageName: String,
+        launcher: AppLauncher,
+    ): HomeScreenGridItem {
+        val dockRow = config.homeRowCount - 1
+        return HomeScreenGridItem(
+            id = null,
+            left = column,
+            top = dockRow,
+            right = column,
+            bottom = dockRow,
+            page = 0,
+            packageName = packageName,
+            activityName = "",
+            userSerial = launcher.userSerial,
+            title = launcher.title,
+            type = ITEM_TYPE_ICON,
+            className = "",
+            widgetId = -1,
+            shortcutId = "",
+            icon = null,
+            docked = true,
+            parentId = null
+        )
+    }
+
+    private fun getDefaultDialerPackageOrNull(): String? = runCatching {
+        (getSystemService(TELECOM_SERVICE) as TelecomManager).defaultDialerPackage
+    }.getOrNull()
+
+    private fun getDefaultSmsPackageOrNull(): String? = runCatching {
+        Telephony.Sms.getDefaultSmsPackage(this)
+    }.getOrNull()
+
+    private fun getDefaultBrowserPackageOrNull(): String? = runCatching {
+        val browserIntent = Intent(Intent.ACTION_VIEW, "http://".toUri())
+        packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
+            ?.activityInfo
+            ?.packageName
+    }.getOrNull()
+
+    private fun getDefaultStorePackageOrNull(appLaunchers: List<AppLauncher>): String? {
+        val launcherPackages = appLaunchers.map { it.packageName }.toSet()
+        val potentialStores = listOf(
+            "com.android.vending",
+            "org.fdroid.fdroid",
+            "com.aurora.store"
+        )
+        return runCatching {
+            potentialStores.firstOrNull { isPackageInstalled(it) && launcherPackages.contains(it) }
+        }.getOrNull()
+    }
+
+    private fun getDefaultCameraPackageOrNull(): String? = runCatching {
+        val cameraIntent = Intent("android.media.action.IMAGE_CAPTURE")
+        packageManager.resolveActivity(cameraIntent, PackageManager.MATCH_DEFAULT_ONLY)
+            ?.activityInfo
+            ?.packageName
+    }.getOrNull()
 
     fun handleWidgetBinding(
         appWidgetManager: AppWidgetManager,
