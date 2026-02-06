@@ -15,9 +15,13 @@ import org.fossify.home.models.AppLauncher
 import org.fossify.home.models.HiddenIcon
 import org.fossify.home.models.HomeScreenGridItem
 
+private const val DATABASE_VERSION = 6
+private const val MIGRATION_FROM_5_TO_6_START_VERSION = 5
+private const val MIGRATION_FROM_5_TO_6_END_VERSION = 6
+
 @Database(
     entities = [AppLauncher::class, HomeScreenGridItem::class, HiddenIcon::class],
-    version = 6
+    version = DATABASE_VERSION
 )
 @TypeConverters(Converters::class)
 abstract class AppsDatabase : RoomDatabase() {
@@ -30,7 +34,10 @@ abstract class AppsDatabase : RoomDatabase() {
 
     companion object {
         private var db: AppsDatabase? = null
-        private val MIGRATION_5_6 = object : Migration(5, 6) {
+        private val MIGRATION_FROM_5_TO_6 = object : Migration(
+            MIGRATION_FROM_5_TO_6_START_VERSION,
+            MIGRATION_FROM_5_TO_6_END_VERSION
+        ) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
                     "ALTER TABLE apps ADD COLUMN user_serial INTEGER NOT NULL DEFAULT 0"
@@ -59,7 +66,7 @@ abstract class AppsDatabase : RoomDatabase() {
                             context.applicationContext,
                             AppsDatabase::class.java,
                             "apps.db"
-                        ).addMigrations(MIGRATION_5_6)
+                        ).addMigrations(MIGRATION_FROM_5_TO_6)
                             .build()
                     }
                 }
