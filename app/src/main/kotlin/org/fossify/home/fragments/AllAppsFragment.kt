@@ -23,6 +23,7 @@ import org.fossify.commons.extensions.getProperPrimaryColor
 import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.hideKeyboard
 import org.fossify.commons.extensions.normalizeString
+import org.fossify.commons.extensions.performHapticFeedback
 import org.fossify.commons.extensions.toast
 import org.fossify.commons.views.MyGridLayoutManager
 import org.fossify.home.activities.MainActivity
@@ -376,9 +377,12 @@ class AllAppsFragment(
                     updateProfileTabs()
                     submitList(getFilteredLaunchers())
                 },
-                onLongClick = {
-                    if (userSerial != myUserSerial) {
-                        toggleProfilePause(userSerial)
+                onLongClick = if (userSerial == myUserSerial) {
+                    null
+                } else {
+                    {
+                        performHapticFeedback()
+                        toggleProfilePause(userSerial, title)
                     }
                 }
             )
@@ -415,7 +419,7 @@ class AllAppsFragment(
         }.toSet()
     }
 
-    private fun toggleProfilePause(userSerial: Long) {
+    private fun toggleProfilePause(userSerial: Long, profileTitle: String) {
         val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager ?: return
         val userHandle = userManager.getUserForSerialNumber(userSerial) ?: return
 
@@ -427,7 +431,12 @@ class AllAppsFragment(
 
         logTabs("toggleProfilePause serial=$userSerial paused=$targetPaused changed=$changed")
         if (!changed) {
-            context.toast("Could not change profile state")
+            val errorMessage = if (targetPaused) {
+                context.getString(R.string.could_not_pause_profile, profileTitle)
+            } else {
+                context.getString(R.string.could_not_resume_profile, profileTitle)
+            }
+            context.toast(errorMessage)
         }
 
         updateProfileTabs()
@@ -486,6 +495,11 @@ class AllAppsFragment(
                     onLongClick()
                     true
                 }
+            } else {
+                // Consume long-press on tabs without an action.
+                // This prevents a click on release after holding.
+                isHapticFeedbackEnabled = false
+                setOnLongClickListener { true }
             }
         }
 
