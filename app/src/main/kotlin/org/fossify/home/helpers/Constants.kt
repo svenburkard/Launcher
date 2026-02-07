@@ -15,6 +15,7 @@ const val CLOSE_APP_DRAWER = "close_app_drawer"
 const val AUTO_SHOW_KEYBOARD_IN_APP_DRAWER = "auto_show_keyboard_in_app_drawer"
 const val SHOW_DRAWER_APP_LABELS = "show_drawer_app_labels"
 const val SHOW_HOME_APP_LABELS = "show_home_app_labels"
+const val DRAWER_SELECTED_PROFILE_SERIAL = "drawer_selected_profile_serial"
 
 // default home screen grid size
 const val ROW_COUNT = 6

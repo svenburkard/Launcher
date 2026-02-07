@@ -66,7 +66,8 @@ class AllAppsFragment(
     var ignoreTouches = false
 
     private var launchers = emptyList<AppLauncher>()
-    private var selectedUserSerial: Long? = null
+    private var selectedUserSerial: Long? = context.config.drawerSelectedProfileSerial
+        .takeIf { it != UNKNOWN_USER_SERIAL }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun setupFragment(activity: MainActivity) {
@@ -332,7 +333,7 @@ class AllAppsFragment(
         binding.profileTabsContainer.removeAllViews()
 
         if (!shouldShowTabs) {
-            selectedUserSerial = null
+            updateSelectedUserSerial(null)
             return
         }
 
@@ -344,7 +345,7 @@ class AllAppsFragment(
         }
 
         if (selectedUserSerial != null && selectedUserSerial !in orderedUserSerials) {
-            selectedUserSerial = myUserSerial ?: orderedUserSerials.firstOrNull()
+            updateSelectedUserSerial(null)
         }
 
         val profileTitles = orderedUserSerials
@@ -355,7 +356,7 @@ class AllAppsFragment(
             title = ALL_PROFILES_TITLE,
             isSelected = selectedUserSerial == null,
             click = {
-                selectedUserSerial = null
+                updateSelectedUserSerial(null)
                 updateProfileTabs()
                 submitList(getFilteredLaunchers())
             }
@@ -371,7 +372,7 @@ class AllAppsFragment(
                 isSelected = userSerial == selectedUserSerial,
                 isPaused = isPaused,
                 click = {
-                    selectedUserSerial = userSerial
+                    updateSelectedUserSerial(userSerial)
                     updateProfileTabs()
                     submitList(getFilteredLaunchers())
                 },
@@ -524,6 +525,11 @@ class AllAppsFragment(
             android.graphics.Color.green(this),
             android.graphics.Color.blue(this)
         )
+    }
+
+    private fun updateSelectedUserSerial(userSerial: Long?) {
+        selectedUserSerial = userSerial
+        context.config.drawerSelectedProfileSerial = userSerial ?: UNKNOWN_USER_SERIAL
     }
 
     private fun logTabs(message: String) {
