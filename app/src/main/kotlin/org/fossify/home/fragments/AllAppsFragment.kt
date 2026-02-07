@@ -26,6 +26,7 @@ import org.fossify.commons.extensions.normalizeString
 import org.fossify.commons.extensions.performHapticFeedback
 import org.fossify.commons.extensions.toast
 import org.fossify.commons.views.MyGridLayoutManager
+import org.fossify.home.R
 import org.fossify.home.activities.MainActivity
 import org.fossify.home.adapters.LaunchersAdapter
 import org.fossify.home.databinding.AllAppsFragmentBinding
@@ -58,8 +59,6 @@ class AllAppsFragment(
         private const val UNSELECTED_TAB_STROKE_ALPHA = 180
         private const val MAX_COLOR_ALPHA = 255
         private const val PAUSED_TAB_ALPHA = 0.45f
-        private const val ALL_PROFILES_TITLE = "All"
-        private const val PROFILE_TITLE_PREFIX = "Profile "
     }
 
     private var lastTouchCoords = Pair(0f, 0f)
@@ -349,12 +348,8 @@ class AllAppsFragment(
             updateSelectedUserSerial(null)
         }
 
-        val profileTitles = orderedUserSerials
-            .mapIndexed { index, serial -> serial to "$PROFILE_TITLE_PREFIX${index + 1}" }
-            .toMap()
-
         val allTab = createProfileTabView(
-            title = ALL_PROFILES_TITLE,
+            title = context.getString(R.string.profile_tab_all),
             isSelected = selectedUserSerial == null,
             click = {
                 updateSelectedUserSerial(null)
@@ -364,8 +359,8 @@ class AllAppsFragment(
         )
         binding.profileTabsContainer.addView(allTab)
 
-        orderedUserSerials.forEach { userSerial ->
-            val title = profileTitles.getValue(userSerial)
+        orderedUserSerials.forEachIndexed { index, userSerial ->
+            val title = context.getString(R.string.profile_tab_title, index + 1)
             val isPaused = userSerial in pausedProfileSerials
 
             val tabView = createProfileTabView(
