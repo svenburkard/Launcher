@@ -5,7 +5,6 @@ import android.content.Context
 import android.os.Process
 import android.os.UserManager
 import android.util.AttributeSet
-import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
@@ -44,8 +43,6 @@ class AllAppsFragment(
     attributeSet: AttributeSet
 ) : MyFragment<AllAppsFragmentBinding>(context, attributeSet), AllAppsListener {
     companion object {
-        private const val TAG = "AllAppsProfileTabs"
-        private const val LOG_PROFILE_TABS = true
         private const val UNSELECTED_TAB_TEXT_ALPHA = 0.8f
         private const val PROFILE_TAB_TEXT_SIZE_SP = 14f
         private const val PROFILE_TAB_HORIZONTAL_PADDING_DP = 16
@@ -324,11 +321,6 @@ class AllAppsFragment(
     private fun updateProfileTabs() {
         val availableUserSerials = getUserProfileSerials().sorted()
         val shouldShowTabs = availableUserSerials.size > 1
-        logTabs(
-            "profiles=$profileSerials launchers=$launcherSerials " +
-                "available=$availableUserSerials showTabs=$shouldShowTabs " +
-                "selected=$selectedUserSerial"
-        )
         binding.profileTabsScroll.beVisibleIf(shouldShowTabs)
         binding.profileTabsContainer.removeAllViews()
 
@@ -392,7 +384,6 @@ class AllAppsFragment(
             val serial = runCatching { userManager.getSerialNumberForUser(handle) }.getOrNull()
             serial?.takeIf { it != UNKNOWN_USER_SERIAL }
         }.distinct()
-        logTabs("getUserProfileSerials -> $serials")
         return serials
     }
 
@@ -424,7 +415,6 @@ class AllAppsFragment(
             userManager.requestQuietModeEnabled(targetPaused, userHandle)
         }.getOrDefault(false)
 
-        logTabs("toggleProfilePause serial=$userSerial paused=$targetPaused changed=$changed")
         if (!changed) {
             val errorMessage = if (targetPaused) {
                 context.getString(R.string.could_not_pause_profile, profileTitle)
@@ -539,11 +529,5 @@ class AllAppsFragment(
     private fun updateSelectedUserSerial(userSerial: Long?) {
         selectedUserSerial = userSerial
         context.config.drawerSelectedProfileSerial = userSerial ?: UNKNOWN_USER_SERIAL
-    }
-
-    private fun logTabs(message: String) {
-        if (LOG_PROFILE_TABS) {
-            Log.d(TAG, message)
-        }
     }
 }
