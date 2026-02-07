@@ -44,14 +44,6 @@ class AllAppsFragment(
 ) : MyFragment<AllAppsFragmentBinding>(context, attributeSet), AllAppsListener {
     companion object {
         private const val UNSELECTED_TAB_TEXT_ALPHA = 0.8f
-        private const val PROFILE_TAB_TEXT_SIZE_SP = 14f
-        private const val PROFILE_TAB_HORIZONTAL_PADDING_DP = 16
-        private const val PROFILE_TAB_VERTICAL_PADDING_DP = 10
-        private const val PROFILE_TAB_HORIZONTAL_MARGIN_DP = 4
-        private const val PROFILE_TAB_STROKE_WIDTH_DP = 1
-        private const val PROFILE_TAB_CORNER_RADIUS_DP = 18
-        private const val PROFILE_TAB_BADGE_SIZE_DP = 12
-        private const val PROFILE_TAB_BADGE_INSET_DP = 8
         private const val SELECTED_TAB_BACKGROUND_ALPHA = 64
         private const val UNSELECTED_TAB_STROKE_ALPHA = 180
         private const val MAX_COLOR_ALPHA = 255
@@ -435,11 +427,14 @@ class AllAppsFragment(
         click: () -> Unit,
         onLongClick: (() -> Unit)? = null,
     ): View {
-        val horizontalPadding = PROFILE_TAB_HORIZONTAL_PADDING_DP.dpToPx()
-        val verticalPadding = PROFILE_TAB_VERTICAL_PADDING_DP.dpToPx()
-        val horizontalMargin = PROFILE_TAB_HORIZONTAL_MARGIN_DP.dpToPx()
-        val badgeSizePx = PROFILE_TAB_BADGE_SIZE_DP.dpToPx()
-        val badgeInsetPx = PROFILE_TAB_BADGE_INSET_DP.dpToPx()
+        val horizontalPadding = resources.getDimensionPixelSize(R.dimen.profile_tab_horizontal_padding)
+        val verticalPadding = resources.getDimensionPixelSize(R.dimen.profile_tab_vertical_padding)
+        val horizontalMargin = resources.getDimensionPixelSize(R.dimen.profile_tab_horizontal_margin)
+        val strokeWidth = resources.getDimensionPixelSize(R.dimen.profile_tab_stroke_width)
+        val cornerRadius = resources.getDimensionPixelSize(R.dimen.profile_tab_corner_radius)
+        val badgeSizePx = resources.getDimensionPixelSize(R.dimen.profile_tab_badge_size)
+        val badgeInsetPx = resources.getDimensionPixelSize(R.dimen.profile_tab_badge_inset)
+        val textSizePx = resources.getDimension(R.dimen.profile_tab_text_size)
 
         val primaryColor = context.getProperPrimaryColor()
         val textColor = context.getProperTextColor()
@@ -449,14 +444,14 @@ class AllAppsFragment(
             com.google.android.material.R.attr.materialButtonOutlinedStyle
         ).apply {
             text = title
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, PROFILE_TAB_TEXT_SIZE_SP)
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, textSizePx)
             setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
             layoutParams = FrameLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            strokeWidth = PROFILE_TAB_STROKE_WIDTH_DP.dpToPx()
-            cornerRadius = PROFILE_TAB_CORNER_RADIUS_DP.dpToPx()
+            this.strokeWidth = strokeWidth
+            this.cornerRadius = cornerRadius
             if (isSelected) {
                 setTextColor(primaryColor)
                 strokeColor = android.content.res.ColorStateList.valueOf(primaryColor)
@@ -511,10 +506,6 @@ class AllAppsFragment(
             addView(button)
             addView(badgeView)
         }
-    }
-
-    private fun Int.dpToPx(): Int {
-        return (this * resources.displayMetrics.density).toInt()
     }
 
     private fun Int.adjustAlpha(alpha: Int): Int {
