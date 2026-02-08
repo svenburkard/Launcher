@@ -260,6 +260,12 @@ class HomeScreenGrid(context: Context, attrs: AttributeSet, defStyle: Int) :
         }
     }
 
+    // TODO: remove before PR merge, but needed to be able to reproduce bug of issue-320
+    fun debugForceWidgetFirstDraw() {
+        isFirstDraw = true
+        redrawGrid()
+    }
+
     fun resizeGrid(newRowCount: Int, newColumnCount: Int) {
         if (columnCount != newColumnCount || rowCount != newRowCount) {
             rowCount = newRowCount
