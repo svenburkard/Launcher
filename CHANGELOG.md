@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Pressing enter in app drawer launches the first app in search results ([#331])
 
+### Fixed
+- Fixed widgets losing configuration after changing grid size ([#197])
+
 ## [1.9.0] - 2026-02-02
 ### Added
 - Option to hide app labels ([#55])
