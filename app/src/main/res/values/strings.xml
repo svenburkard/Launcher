@@ -16,6 +16,11 @@
     <string name="show_app_labels">Show app labels</string>
     <string name="home_screen_settings">Home screen</string>
     <string name="widget_too_big">Widget is too big for current home screen size</string>
+    <string name="profile_tab_all">All</string>
+    <!-- %1$d is the profile index shown in tabs, e.g. "Profile 2". -->
+    <string name="profile_tab_title">Profile %1$d</string>
+    <string name="could_not_pause_profile">Could not pause %1$s</string>
+    <string name="could_not_resume_profile">Could not resume %1$s</string>
     <string name="double_tap_to_lock">Double tap to lock screen</string>
     <string name="lock_device_admin_hint">To enable the double tap to lock screen feature, you need to grant admin permission. Note that the app cannot be uninstalled until this permission is removed.</string>
     <string name="lock_device_admin_warning">Deactivating admin permission will disable the double tap to lock screen feature.</string>

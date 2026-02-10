@@ -2,18 +2,30 @@ package org.fossify.home.fragments
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Process
+import android.os.UserManager
 import android.util.AttributeSet
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.OnScrollListener
+import com.google.android.material.button.MaterialButton
 import org.fossify.commons.extensions.beGone
 import org.fossify.commons.extensions.beVisibleIf
 import org.fossify.commons.extensions.getProperPrimaryColor
 import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.hideKeyboard
 import org.fossify.commons.extensions.normalizeString
+import org.fossify.commons.extensions.performHapticFeedback
+import org.fossify.commons.extensions.toast
 import org.fossify.commons.views.MyGridLayoutManager
+import org.fossify.home.R
 import org.fossify.home.activities.MainActivity
 import org.fossify.home.adapters.LaunchersAdapter
 import org.fossify.home.databinding.AllAppsFragmentBinding
@@ -21,6 +33,7 @@ import org.fossify.home.extensions.config
 import org.fossify.home.extensions.launchApp
 import org.fossify.home.extensions.setupDrawerBackground
 import org.fossify.home.helpers.ITEM_TYPE_ICON
+import org.fossify.home.helpers.UNKNOWN_USER_SERIAL
 import org.fossify.home.interfaces.AllAppsListener
 import org.fossify.home.models.AppLauncher
 import org.fossify.home.models.HomeScreenGridItem
@@ -29,12 +42,21 @@ class AllAppsFragment(
     context: Context,
     attributeSet: AttributeSet
 ) : MyFragment<AllAppsFragmentBinding>(context, attributeSet), AllAppsListener {
+    companion object {
+        private const val UNSELECTED_TAB_TEXT_ALPHA = 0.8f
+        private const val SELECTED_TAB_BACKGROUND_ALPHA = 64
+        private const val UNSELECTED_TAB_STROKE_ALPHA = 180
+        private const val MAX_COLOR_ALPHA = 255
+        private const val PAUSED_TAB_ALPHA = 0.45f
+    }
 
     private var lastTouchCoords = Pair(0f, 0f)
     var touchDownY = -1
     var ignoreTouches = false
 
     private var launchers = emptyList<AppLauncher>()
+    private var selectedUserSerial: Long? = context.config.drawerSelectedProfileSerial
+        .takeIf { it != UNKNOWN_USER_SERIAL }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun setupFragment(activity: MainActivity) {
@@ -76,7 +98,7 @@ class AllAppsFragment(
 
         val layoutManager = binding.allAppsGrid.layoutManager as MyGridLayoutManager
         layoutManager.spanCount = context.config.drawerColumnCount
-        setupAdapter(launchers)
+        setupAdapter(getFilteredLaunchers())
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent?): Boolean {
@@ -125,11 +147,15 @@ class AllAppsFragment(
         launchers = appLaunchers.sortedWith(
             compareBy(
                 { it.title.normalizeString().lowercase() },
-                { it.packageName }
+                { it.packageName },
+                { it.userSerial }
             )
         )
 
-        setupAdapter(launchers)
+        activity?.runOnUiThread {
+            updateProfileTabs()
+            setupAdapter(getFilteredLaunchers())
+        }
     }
 
     private fun getAdapter() = binding.allAppsGrid.adapter as? LaunchersAdapter
@@ -141,7 +167,11 @@ class AllAppsFragment(
 
             if (getAdapter() == null) {
                 LaunchersAdapter(activity!!, this) {
-                    activity?.launchApp((it as AppLauncher).packageName, it.activityName)
+                    activity?.launchApp(
+                        (it as AppLauncher).packageName,
+                        it.activityName,
+                        it.userSerial
+                    )
                     if (activity?.config?.closeAppDrawer == true) {
                         activity?.closeAppDrawer(delayed = true)
                     }
@@ -171,7 +201,8 @@ class AllAppsFragment(
                 removeAt(position)
             }
 
-            submitList(launchers.toMutableList())
+            updateProfileTabs()
+            submitList(getFilteredLaunchers())
         }
     }
 
@@ -192,6 +223,7 @@ class AllAppsFragment(
 
         setupDrawerBackground()
         getAdapter()?.updateTextColor(context.getProperTextColor())
+        updateProfileTabs()
 
         binding.searchBar.beVisibleIf(context.config.showSearchBar)
         binding.searchBar.requireToolbar().beGone()
@@ -199,7 +231,7 @@ class AllAppsFragment(
         binding.searchBar.setupMenu()
 
         binding.searchBar.onSearchTextChangedListener = {
-            submitList(launchers)
+            submitList(getFilteredLaunchers())
         }
 
         binding.searchBar.binding.topToolbarSearch.setOnEditorActionListener { _, actionId, _ ->
@@ -228,6 +260,7 @@ class AllAppsFragment(
             page = 0,
             packageName = appLauncher.packageName,
             activityName = appLauncher.activityName,
+            userSerial = appLauncher.userSerial,
             title = appLauncher.title,
             type = ITEM_TYPE_ICON,
             className = "",
@@ -268,5 +301,224 @@ class AllAppsFragment(
         getAdapter()?.submitList(filtered) {
             showNoResultsPlaceholderIfNeeded()
         }
+    }
+
+    private fun getFilteredLaunchers(): List<AppLauncher> {
+        val pausedSerials = getPausedProfileSerials()
+        val activeLaunchers = launchers.filter { it.userSerial !in pausedSerials }
+        val userSerial = selectedUserSerial ?: return activeLaunchers
+        return activeLaunchers.filter { it.userSerial == userSerial }
+    }
+
+    private fun updateProfileTabs() {
+        val availableUserSerials = getUserProfileSerials().sorted()
+        val shouldShowTabs = availableUserSerials.size > 1
+        binding.profileTabsScroll.beVisibleIf(shouldShowTabs)
+        binding.profileTabsContainer.removeAllViews()
+
+        if (!shouldShowTabs) {
+            updateSelectedUserSerial(null)
+            return
+        }
+
+        val myUserSerial = getMyUserSerial()
+        val pausedProfileSerials = getPausedProfileSerials()
+        val orderedUserSerials = availableUserSerials.sorted().toMutableList()
+        if (myUserSerial != null && orderedUserSerials.remove(myUserSerial)) {
+            orderedUserSerials.add(0, myUserSerial)
+        }
+
+        if (selectedUserSerial != null && selectedUserSerial !in orderedUserSerials) {
+            updateSelectedUserSerial(null)
+        }
+
+        val allTab = createProfileTabView(
+            title = context.getString(R.string.profile_tab_all),
+            isSelected = selectedUserSerial == null,
+            click = {
+                updateSelectedUserSerial(null)
+                updateProfileTabs()
+                submitList(getFilteredLaunchers())
+            }
+        )
+        binding.profileTabsContainer.addView(allTab)
+
+        orderedUserSerials.forEachIndexed { index, userSerial ->
+            val title = context.getString(R.string.profile_tab_title, index + 1)
+            val isPaused = userSerial in pausedProfileSerials
+
+            val tabView = createProfileTabView(
+                title = title,
+                isSelected = userSerial == selectedUserSerial,
+                isPaused = isPaused,
+                click = {
+                    updateSelectedUserSerial(userSerial)
+                    updateProfileTabs()
+                    submitList(getFilteredLaunchers())
+                },
+                onLongClick = if (userSerial == myUserSerial) {
+                    null
+                } else {
+                    {
+                        performHapticFeedback()
+                        toggleProfilePause(userSerial, title)
+                    }
+                }
+            )
+
+            binding.profileTabsContainer.addView(tabView)
+        }
+    }
+
+    private fun getUserProfileSerials(): List<Long> {
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager ?: return emptyList()
+        val serials = userManager.userProfiles.mapNotNull { handle ->
+            val serial = runCatching { userManager.getSerialNumberForUser(handle) }.getOrNull()
+            serial?.takeIf { it != UNKNOWN_USER_SERIAL }
+        }.distinct()
+        return serials
+    }
+
+    private fun getMyUserSerial(): Long? {
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager ?: return null
+        val serial = runCatching {
+            userManager.getSerialNumberForUser(Process.myUserHandle())
+        }.getOrNull() ?: return null
+        return serial.takeIf { it != UNKNOWN_USER_SERIAL }
+    }
+
+    private fun getPausedProfileSerials(): Set<Long> {
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager ?: return emptySet()
+        return userManager.userProfiles.mapNotNull { handle ->
+            val serial = runCatching { userManager.getSerialNumberForUser(handle) }.getOrNull()
+                ?.takeIf { it != UNKNOWN_USER_SERIAL } ?: return@mapNotNull null
+            val isPaused = runCatching { userManager.isQuietModeEnabled(handle) }.getOrDefault(false)
+            if (isPaused) serial else null
+        }.toSet()
+    }
+
+    private fun toggleProfilePause(userSerial: Long, profileTitle: String) {
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager ?: return
+        val userHandle = userManager.getUserForSerialNumber(userSerial) ?: return
+
+        val currentlyPaused = runCatching { userManager.isQuietModeEnabled(userHandle) }.getOrDefault(false)
+        val targetPaused = !currentlyPaused
+        val changed = runCatching {
+            userManager.requestQuietModeEnabled(targetPaused, userHandle)
+        }.getOrDefault(false)
+
+        if (!changed) {
+            val errorMessage = if (targetPaused) {
+                context.getString(R.string.could_not_pause_profile, profileTitle)
+            } else {
+                context.getString(R.string.could_not_resume_profile, profileTitle)
+            }
+            context.toast(errorMessage)
+        }
+
+        updateProfileTabs()
+        submitList(getFilteredLaunchers())
+    }
+
+    private fun createProfileTabView(
+        title: String,
+        isSelected: Boolean,
+        isPaused: Boolean = false,
+        click: () -> Unit,
+        onLongClick: (() -> Unit)? = null,
+    ): View {
+        val horizontalPadding = resources.getDimensionPixelSize(R.dimen.profile_tab_horizontal_padding)
+        val verticalPadding = resources.getDimensionPixelSize(R.dimen.profile_tab_vertical_padding)
+        val horizontalMargin = resources.getDimensionPixelSize(R.dimen.profile_tab_horizontal_margin)
+        val strokeWidth = resources.getDimensionPixelSize(R.dimen.profile_tab_stroke_width)
+        val cornerRadius = resources.getDimensionPixelSize(R.dimen.profile_tab_corner_radius)
+        val badgeSizePx = resources.getDimensionPixelSize(R.dimen.profile_tab_badge_size)
+        val badgeInsetPx = resources.getDimensionPixelSize(R.dimen.profile_tab_badge_inset)
+        val textSizePx = resources.getDimension(R.dimen.profile_tab_text_size)
+
+        val primaryColor = context.getProperPrimaryColor()
+        val textColor = context.getProperTextColor()
+        val button = MaterialButton(
+            context,
+            null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle
+        ).apply {
+            text = title
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, textSizePx)
+            setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+            layoutParams = FrameLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            this.strokeWidth = strokeWidth
+            this.cornerRadius = cornerRadius
+            if (isSelected) {
+                setTextColor(primaryColor)
+                strokeColor = android.content.res.ColorStateList.valueOf(primaryColor)
+                setBackgroundColor(primaryColor.adjustAlpha(SELECTED_TAB_BACKGROUND_ALPHA))
+                alpha = 1f
+            } else {
+                setTextColor(textColor)
+                strokeColor = android.content.res.ColorStateList.valueOf(
+                    textColor.adjustAlpha(UNSELECTED_TAB_STROKE_ALPHA)
+                )
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                alpha = UNSELECTED_TAB_TEXT_ALPHA
+            }
+
+            if (isPaused) {
+                alpha = if (isSelected) PAUSED_TAB_ALPHA else minOf(alpha, PAUSED_TAB_ALPHA)
+            }
+            setOnClickListener { click() }
+            if (onLongClick != null) {
+                setOnLongClickListener {
+                    onLongClick()
+                    true
+                }
+            } else {
+                // Consume long-press on tabs without an action.
+                // This prevents a click on release after holding.
+                isHapticFeedbackEnabled = false
+                setOnLongClickListener { true }
+            }
+        }
+
+        val badgeView = ImageView(context).apply {
+            setImageResource(android.R.drawable.ic_media_pause)
+            imageTintList = android.content.res.ColorStateList.valueOf(primaryColor)
+            visibility = if (isPaused) View.VISIBLE else View.GONE
+            layoutParams = FrameLayout.LayoutParams(badgeSizePx, badgeSizePx, Gravity.END or Gravity.TOP).apply {
+                marginEnd = badgeInsetPx
+                topMargin = badgeInsetPx
+            }
+            isClickable = false
+            isFocusable = false
+        }
+
+        return FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                leftMargin = horizontalMargin
+                rightMargin = horizontalMargin
+            }
+            addView(button)
+            addView(badgeView)
+        }
+    }
+
+    private fun Int.adjustAlpha(alpha: Int): Int {
+        return android.graphics.Color.argb(
+            alpha.coerceIn(0, MAX_COLOR_ALPHA),
+            android.graphics.Color.red(this),
+            android.graphics.Color.green(this),
+            android.graphics.Color.blue(this)
+        )
+    }
+
+    private fun updateSelectedUserSerial(userSerial: Long?) {
+        selectedUserSerial = userSerial
+        context.config.drawerSelectedProfileSerial = userSerial ?: UNKNOWN_USER_SERIAL
     }
 }

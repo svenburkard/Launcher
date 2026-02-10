@@ -12,4 +12,12 @@
     <dimen name="min_folder_view_height">200dp</dimen>
     <dimen name="max_folder_view_height">500dp</dimen>
     <dimen name="menu_icon_size">24dp</dimen>
+    <dimen name="profile_tab_text_size">14sp</dimen>
+    <dimen name="profile_tab_horizontal_padding">16dp</dimen>
+    <dimen name="profile_tab_vertical_padding">10dp</dimen>
+    <dimen name="profile_tab_horizontal_margin">4dp</dimen>
+    <dimen name="profile_tab_stroke_width">1dp</dimen>
+    <dimen name="profile_tab_corner_radius">18dp</dimen>
+    <dimen name="profile_tab_badge_size">12dp</dimen>
+    <dimen name="profile_tab_badge_inset">8dp</dimen>
 </resources>
