@@ -263,6 +263,12 @@ class HomeScreenGrid(context: Context, attrs: AttributeSet, defStyle: Int) :
         }
     }
 
+    // TODO: remove before PR merge, but needed to be able to reproduce bug of issue-320
+    fun debugForceWidgetFirstDraw() {
+        isFirstDraw = true
+        redrawGrid()
+    }
+
     fun resizeGrid(newRowCount: Int, newColumnCount: Int) {
         if (columnCount != newColumnCount || rowCount != newRowCount) {
             rowCount = newRowCount
@@ -1137,6 +1143,10 @@ class HomeScreenGrid(context: Context, attrs: AttributeSet, defStyle: Int) :
         appWidgetProviderInfo: AppWidgetProviderInfo,
         item: HomeScreenGridItem,
     ) {
+        if (reuseExistingWidgetViewIfPresent(item)) {
+            return
+        }
+
         // we have to pass the base context here, else there will be errors with the themes
         val widgetView = appWidgetHost.createView(
             (context as MainActivity).baseContext,
@@ -1199,6 +1209,12 @@ class HomeScreenGrid(context: Context, attrs: AttributeSet, defStyle: Int) :
         widgetView.layoutParams?.width = widgetWidth
         widgetView.layoutParams?.height = widgetHeight
         return Size(widgetWidth, widgetHeight)
+    }
+
+    private fun reuseExistingWidgetViewIfPresent(item: HomeScreenGridItem): Boolean {
+        val existingWidgetView = widgetViews.firstOrNull { it.tag == item.widgetId } ?: return false
+        updateWidgetPositionAndSize(existingWidgetView, item)
+        return true
     }
 
     private fun calculateWidgetPos(topLeft: Point): Point {
@@ -1300,6 +1316,10 @@ class HomeScreenGrid(context: Context, attrs: AttributeSet, defStyle: Int) :
             gridItems
                 .filter { it.type == ITEM_TYPE_WIDGET && !it.outOfBounds() }
                 .forEach { item ->
+                    if (reuseExistingWidgetViewIfPresent(item)) {
+                        return@forEach
+                    }
+
                     val providerInfo = item.providerInfo
                         ?: appWidgetManager!!.installedProviders
                             .firstOrNull { it.provider.className == item.className }
